@@ -1455,14 +1455,30 @@ predict_seasonal_components <- function(m, df) {
 
   X <- as.matrix(seasonal.features)
   component.predictions <- data.frame(matrix(ncol = 0, nrow = nrow(X)))
-  for (component in colnames(component.cols)) {
+  comp_cols <- c(setdiff(colnames(component.cols), "multiplicative_terms"),"multiplicative_terms")
+  for (component in comp_cols) {
     beta.c <- t(m$params$beta) * component.cols[[component]]
 
     comp <- X %*% beta.c
+
     if (component %in% m$component.modes$additive) {
       comp <- comp * m$y.scale
     }
+
+    if (component == "multiplicative_terms") {
+      comp <-
+        component.predictions %>%
+        select(any_of(m$component.modes$multiplicative)) %>%
+        mutate(across(
+          .cols = where(is.numeric),
+          .fns = ~ . + 1
+        )) %>%
+        mutate(multiplicative_terms = reduce(., `*`)) %>%
+        select(multiplicative_terms)
+    }
+
     component.predictions[[component]] <- rowMeans(comp, na.rm = TRUE)
+
     if (m$uncertainty.samples){
       component.predictions[[paste0(component, '_lower')]] <- apply(
         comp, 1, stats::quantile, lower.p, na.rm = TRUE)
@@ -1472,7 +1488,6 @@ predict_seasonal_components <- function(m, df) {
   }
   return(component.predictions)
 }
-
 #' Prophet posterior predictive samples.
 #'
 #' @param m Prophet object.
