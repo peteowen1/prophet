@@ -570,7 +570,7 @@ construct_holiday_dataframe <- function(m, dates) {
 #' @keywords internal
 make_holiday_features <- function(m, dates, holidays) {
   # Strip dates to be just days, for joining on holidays
-  dates <- set_date(format(dates, "%Y-%m-%d"))
+  dates <- set_date(format(as.Date(dates), "%Y-%m-%d"))
   wide <- holidays %>%
     dplyr::mutate(ds = set_date(ds)) %>%
     dplyr::group_by(holiday, ds) %>%
