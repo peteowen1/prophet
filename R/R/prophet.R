@@ -1334,7 +1334,7 @@ predict.prophet <- function(object, df = NULL, ...) {
   }
   df <- df[cols]
   df <- dplyr::bind_cols(df, seasonal.components, intervals)
-  df$yhat <- df$trend * (1 + df$multiplicative_terms) + df$additive_terms
+  df$yhat <- df$trend * (df$multiplicative_terms) + df$additive_terms
   return(df)
 }
 
