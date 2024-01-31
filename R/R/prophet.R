@@ -1444,49 +1444,57 @@ predict_trend <- function(model, df) {
 #'
 #' @keywords internal
 predict_seasonal_components <- function(m, df) {
-  out <- make_all_seasonality_features(m, df)
-  m <- out$m
-  seasonal.features <- out$seasonal.features
-  component.cols <- out$component.cols
-  if (m$uncertainty.samples){
-    lower.p <- (1 - m$interval.width)/2
-    upper.p <- (1 + m$interval.width)/2
+  out <- prophet:::make_all_seasonality_features(m, df)
+m <- out$m
+seasonal.features <- out$seasonal.features
+component.cols <- out$component.cols
+if (m$uncertainty.samples) {
+  lower.p <- (1 - m$interval.width) / 2
+  upper.p <- (1 + m$interval.width) / 2
+}
+
+X <- as.matrix(seasonal.features)
+component.predictions <- data.frame(matrix(ncol = 0, nrow = nrow(X)))
+comp_cols <- c(setdiff(colnames(component.cols), "multiplicative_terms"), "multiplicative_terms")
+for (component in comp_cols) {
+  beta.c <- t(m$params$beta) * component.cols[[component]]
+
+  comp <- X %*% beta.c
+
+  if (component %in% m$component.modes$additive) {
+    comp <- comp * m$y.scale
   }
 
-  X <- as.matrix(seasonal.features)
-  component.predictions <- data.frame(matrix(ncol = 0, nrow = nrow(X)))
-  comp_cols <- c(setdiff(colnames(component.cols), "multiplicative_terms"),"multiplicative_terms")
-  for (component in comp_cols) {
-    beta.c <- t(m$params$beta) * component.cols[[component]]
-
-    comp <- X %*% beta.c
-
-    if (component %in% m$component.modes$additive) {
-      comp <- comp * m$y.scale
-    }
-
-    if (component == "multiplicative_terms") {
-      comp <-
-        component.predictions %>%
-        select(any_of(m$component.modes$multiplicative)) %>%
-        mutate(across(
-          .cols = where(is.numeric),
-          .fns = ~ . + 1
-        )) %>%
-        mutate(multiplicative_terms = reduce(., `*`)) %>%
-        select(multiplicative_terms)
-    }
-
-    component.predictions[[component]] <- rowMeans(comp, na.rm = TRUE)
-
-    if (m$uncertainty.samples){
-      component.predictions[[paste0(component, '_lower')]] <- apply(
-        comp, 1, stats::quantile, lower.p, na.rm = TRUE)
-      component.predictions[[paste0(component, '_upper')]] <- apply(
-        comp, 1, stats::quantile, upper.p, na.rm = TRUE)
-    }
+  if (component == "multiplicative_terms") {
+    comp <-
+      component.predictions %>%
+      select(any_of(setdiff(
+        m$component.modes$multiplicative,
+        c("holidays", "multiplicative_terms", "extra_regressors_multiplicative")
+      ))) %>%
+      mutate(across(
+        .cols = where(is.numeric),
+        .fns = ~ pmax(.,-0.95) + 1
+      )) %>%
+      mutate(multiplicative_terms = reduce(., `*`)) %>%
+      select(multiplicative_terms)
   }
-  return(component.predictions)
+
+  component.predictions[[component]] <- rowMeans(comp, na.rm = TRUE)
+
+  if (m$uncertainty.samples) {
+    component.predictions[[paste0(component, "_lower")]] <- apply(
+      comp, 1, stats::quantile, lower.p,
+      na.rm = TRUE
+    )
+    component.predictions[[paste0(component, "_upper")]] <- apply(
+      comp, 1, stats::quantile, upper.p,
+      na.rm = TRUE
+    )
+  }
+}
+return(component.predictions)
+
 }
 #' Prophet posterior predictive samples.
 #'
